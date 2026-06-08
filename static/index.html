@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="A premium, glassmorphic Todo Application powered by FastAPI and modern vanilla HTML/CSS/JS.">
+    <meta name="description" content="A premium, glassmorphic Todo Application powered by FastAPI and modern vanilla HTML/CSS/JS with integrated interactive calendar.">
     <title>TaskFlow &mdash; Private Shared Todo Application</title>
     <!-- Modern Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -68,10 +68,34 @@
                     </button>
                 </div>
             </div>
-            <p class="app-subtitle">Private task dashboard. Syncing in real-time.</p>
+            <p class="app-subtitle">Private task dashboard with Calendar scheduler.</p>
         </header>
 
         <main class="app-main">
+            <!-- Dynamic Calendar Section -->
+            <section class="calendar-section">
+                <div class="calendar-header">
+                    <button id="prev-month-btn" class="nav-btn" aria-label="Previous Month">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                    <h3 id="calendar-month-year">...</h3>
+                    <button id="next-month-btn" class="nav-btn" aria-label="Next Month">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                </div>
+                <div class="calendar-weekdays">
+                    <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+                </div>
+                <div id="calendar-days" class="calendar-days">
+                    <!-- Days will be rendered by Javascript -->
+                </div>
+            </section>
+
+            <!-- Active Date Header -->
+            <section class="active-date-section">
+                <h2 id="active-date-display">Tasks for ...</h2>
+            </section>
+
             <!-- Add Task Form -->
             <section class="task-form-section">
                 <form id="todo-form" autocomplete="off">
@@ -79,7 +103,7 @@
                         <input 
                             type="text" 
                             id="task-input" 
-                            placeholder="What needs to be done today?" 
+                            placeholder="Add a task for selected date..." 
                             required
                             aria-label="New Task Input"
                         >
@@ -91,10 +115,10 @@
                 </form>
             </section>
 
-            <!-- Stats/Filters Section -->
+            <!-- Stats Section (for selected date) -->
             <section class="task-stats-section">
                 <div class="stat-badge">
-                    <span class="stat-label">Total Tasks</span>
+                    <span class="stat-label">Total (Today)</span>
                     <span id="total-count" class="stat-value">0</span>
                 </div>
                 <div class="stat-badge">
@@ -109,8 +133,8 @@
                     <div class="empty-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
                     </div>
-                    <h3>No tasks yet</h3>
-                    <p>Add a task above to begin tracking your progress.</p>
+                    <h3>No tasks for this day</h3>
+                    <p>Add a task above to schedule it for this date.</p>
                 </div>
                 <ul id="task-list" class="task-list">
                     <!-- Dynamic tasks will be inserted here -->

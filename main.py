@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import database
 
-app = FastAPI(title="Premium Shared Todo API", version="1.0.0")
+app = FastAPI(title="Premium Shared Todo API with Calendar", version="1.1.0")
 
 # Enable CORS for development
 app.add_middleware(
@@ -19,6 +19,7 @@ app.add_middleware(
 # Pydantic models
 class TaskBase(BaseModel):
     title: str
+    task_date: str  # Expected format: YYYY-MM-DD
 
 class TaskCreate(TaskBase):
     pass
@@ -44,7 +45,7 @@ def create_task(
     task: TaskCreate, 
     room_id: str = Query(..., description="Secret Room Key used to group tasks")
 ):
-    """Add a new task to SQLite database for a specific room."""
+    """Add a new task to SQLite database for a specific room and date."""
     if not room_id or room_id.strip() == "":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -55,8 +56,13 @@ def create_task(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Task title cannot be empty"
         )
+    if not task.task_date or task.task_date.strip() == "":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Task date cannot be empty"
+        )
     
-    new_task = database.add_task(room_id.strip(), task.title.strip())
+    new_task = database.add_task(room_id.strip(), task.title.strip(), task.task_date.strip())
     return new_task
 
 @app.delete("/api/tasks/{task_id}", status_code=status.HTTP_200_OK)

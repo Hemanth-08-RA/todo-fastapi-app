@@ -1,6 +1,6 @@
 /**
  * TaskFlow Frontend Application Logic
- * Communicates with FastAPI Backend API using SQLite storage & Shared Room Keys
+ * Integrates shared rooms, real-time polling, and an interactive calendar.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,6 +13,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const roomInput = document.getElementById('room-input');
     const todoForm = document.getElementById('todo-form');
     const taskInput = document.getElementById('task-input');
+
+    // DOM Calendar Elements
+    const calendarMonthYear = document.getElementById('calendar-month-year');
+    const calendarDaysGrid = document.getElementById('calendar-days');
+    const prevMonthBtn = document.getElementById('prev-month-btn');
+    const nextMonthBtn = document.getElementById('next-month-btn');
+    const activeDateDisplay = document.getElementById('active-date-display');
 
     // DOM Interactive Elements
     const taskList = document.getElementById('task-list');
@@ -30,6 +37,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let tasks = [];
     let currentRoomId = '';
     let pollIntervalId = null;
+
+    // Calendar & Date State
+    const today = new Date();
+    let selectedDate = formatDateString(today.getFullYear(), today.getMonth(), today.getDate());
+    let calendarYear = today.getFullYear();
+    let calendarMonth = today.getMonth(); // 0-indexed (0 = Jan)
+
+    const monthNames = [
+        "January", "February", "March", "April", "May", "June", 
+        "July", "August", "September", "October", "November", "December"
+    ];
 
     // Initialize application
     init();
@@ -49,6 +67,29 @@ document.addEventListener('DOMContentLoaded', () => {
         joinForm.addEventListener('submit', handleJoinSubmit);
         todoForm.addEventListener('submit', handleTaskSubmit);
         leaveBtn.addEventListener('click', disconnectRoom);
+
+        // Calendar Navigation
+        prevMonthBtn.addEventListener('click', () => navigateMonth(-1));
+        nextMonthBtn.addEventListener('click', () => navigateMonth(1));
+    }
+
+    // Helper to format date elements to YYYY-MM-DD
+    function formatDateString(year, monthIndex, day) {
+        const mm = String(monthIndex + 1).padStart(2, '0');
+        const dd = String(day).padStart(2, '0');
+        return `${year}-${mm}-${dd}`;
+    }
+
+    // Helper to display date in friendly format: e.g. "Monday, Jun 8, 2026"
+    function formatFriendlyDate(dateStr) {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        return dateObj.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+        });
     }
 
     // Connect to a specific Room
@@ -63,8 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
         joinContainer.classList.add('hidden');
         appContainer.classList.remove('hidden');
         
-        // Clear tasks list and fetch immediately
+        // Reset state and fetch immediately
         tasks = [];
+        updateActiveDateUI();
         fetchTasks();
         
         // Start Polling (every 3 seconds)
@@ -75,15 +117,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Disconnect/Leave Room
     function disconnectRoom() {
-        // Stop polling
         stopPolling();
         
-        // Clear local storage & state
         localStorage.removeItem('taskflow_room_id');
         currentRoomId = '';
         tasks = [];
         
-        // Reset inputs
         roomInput.value = '';
         taskInput.value = '';
         
@@ -108,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Start polling the server for updates
     function startPolling() {
-        stopPolling(); // Ensure no duplicate intervals
+        stopPolling();
         pollIntervalId = setInterval(fetchTasks, 3000);
     }
 
@@ -118,6 +157,124 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(pollIntervalId);
             pollIntervalId = null;
         }
+    }
+
+    // Navigation for calendar months
+    function navigateMonth(direction) {
+        calendarMonth += direction;
+        if (calendarMonth < 0) {
+            calendarMonth = 11;
+            calendarYear -= 1;
+        } else if (calendarMonth > 11) {
+            calendarMonth = 0;
+            calendarYear += 1;
+        }
+        renderCalendar();
+    }
+
+    // Update active date header text and form placeholder
+    function updateActiveDateUI() {
+        activeDateDisplay.textContent = `Tasks for ${formatFriendlyDate(selectedDate)}`;
+        
+        // Check if selectedDate matches today to adjust input placeholder
+        const todayStr = formatDateString(today.getFullYear(), today.getMonth(), today.getDate());
+        if (selectedDate === todayStr) {
+            taskInput.placeholder = "Add a task for today...";
+        } else {
+            const [y, m, d] = selectedDate.split('-').map(Number);
+            const shortDate = new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            taskInput.placeholder = `Add a task for ${shortDate}...`;
+        }
+    }
+
+    // Render Calendar Grid
+    function renderCalendar() {
+        calendarMonthYear.textContent = `${monthNames[calendarMonth]} ${calendarYear}`;
+        calendarDaysGrid.innerHTML = '';
+
+        // Get index of first day of the month (Monday-start mapping: 0 = Mon, 6 = Sun)
+        let firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
+        firstDayIndex = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+
+        // Get total days in current month and previous month
+        const totalDays = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+        const prevTotalDays = new Date(calendarYear, calendarMonth, 0).getDate();
+
+        // 1. Previous Month's Padding Days
+        for (let i = firstDayIndex; i > 0; i--) {
+            const dayNum = prevTotalDays - i + 1;
+            const prevMonthIndex = calendarMonth === 0 ? 11 : calendarMonth - 1;
+            const prevYear = calendarMonth === 0 ? calendarYear - 1 : calendarYear;
+            const dateStr = formatDateString(prevYear, prevMonthIndex, dayNum);
+
+            const dayDiv = createDayCell(dayNum, dateStr, true);
+            calendarDaysGrid.appendChild(dayDiv);
+        }
+
+        // 2. Current Month's Days
+        for (let i = 1; i <= totalDays; i++) {
+            const dateStr = formatDateString(calendarYear, calendarMonth, i);
+            const dayDiv = createDayCell(i, dateStr, false);
+            calendarDaysGrid.appendChild(dayDiv);
+        }
+
+        // 3. Next Month's Padding Days (Complete 6-week layout if needed)
+        const totalCellsRendered = firstDayIndex + totalDays;
+        const totalGridCells = Math.ceil(totalCellsRendered / 7) * 7;
+        const nextMonthPadding = totalGridCells - totalCellsRendered;
+
+        for (let i = 1; i <= nextMonthPadding; i++) {
+            const nextMonthIndex = calendarMonth === 11 ? 0 : calendarMonth + 1;
+            const nextYear = calendarMonth === 11 ? calendarYear + 1 : calendarYear;
+            const dateStr = formatDateString(nextYear, nextMonthIndex, i);
+
+            const dayDiv = createDayCell(i, dateStr, true);
+            calendarDaysGrid.appendChild(dayDiv);
+        }
+    }
+
+    // Helper to generate day grid cell element
+    function createDayCell(dayNum, dateStr, isAdjacent) {
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'calendar-day';
+        dayDiv.textContent = dayNum;
+        
+        if (isAdjacent) {
+            dayDiv.classList.add('adjacent-month');
+        }
+
+        // Check if day is today
+        const todayStr = formatDateString(today.getFullYear(), today.getMonth(), today.getDate());
+        if (dateStr === todayStr) {
+            dayDiv.classList.add('today');
+        }
+
+        // Check if day is selected
+        if (dateStr === selectedDate) {
+            dayDiv.classList.add('selected-day');
+        }
+
+        // Check if day has tasks to render a cyan indicator dot
+        const hasTasks = tasks.some(task => task.task_date === dateStr);
+        if (hasTasks) {
+            dayDiv.classList.add('has-tasks');
+        }
+
+        // Select day on click
+        dayDiv.addEventListener('click', () => {
+            selectedDate = dateStr;
+            
+            // Adjust calendarMonth/Year view if clicking an adjacent day
+            const [y, m, d] = dateStr.split('-').map(Number);
+            calendarMonth = m - 1;
+            calendarYear = y;
+
+            updateActiveDateUI();
+            renderCalendar();
+            renderTasks();
+        });
+
+        return dayDiv;
     }
 
     // Handle Task Form Submission
@@ -132,7 +289,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ title }),
+                body: JSON.stringify({ 
+                    title: title, 
+                    task_date: selectedDate 
+                }),
             });
 
             if (!response.ok) {
@@ -141,11 +301,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const newTask = await response.json();
             
-            // Add task locally and render immediately for instant feedback
+            // Add task locally, trigger UI updates immediately
             tasks.push(newTask);
             taskInput.value = '';
             taskInput.focus();
             
+            renderCalendar();
             renderTasks();
             showToast('Task added!', 'success');
         } catch (error) {
@@ -165,15 +326,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const fetchedTasks = await response.json();
             
-            // Smart Update: Compare with current list. Only re-render if something changed.
+            // Smart Update: Compare with current list. Only update DOM if something changed
             if (hasTaskStateChanged(tasks, fetchedTasks)) {
                 tasks = fetchedTasks;
+                renderCalendar();
                 renderTasks();
             }
         } catch (error) {
             console.error('Error fetching tasks during polling:', error);
-            // Don't spam error toasts during polling to maintain clean UX, 
-            // just log it.
         }
     }
 
@@ -187,7 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (
                 oldT.id !== newT.id || 
                 oldT.title !== newT.title || 
-                oldT.completed !== newT.completed
+                oldT.completed !== newT.completed ||
+                oldT.task_date !== newT.task_date
             ) {
                 return true;
             }
@@ -241,41 +402,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Failed to delete task');
             }
 
-            // Remove from local state and re-render
+            // Remove from local state, update calendar grid dots & tasks list
             tasks = tasks.filter(task => task.id !== taskId);
+            renderCalendar();
             renderTasks();
             
             showToast('Task deleted.', 'success');
         } catch (error) {
             console.error('Error deleting task:', error);
-            // Revert animation class if delete fails
             taskElement.classList.remove('removing');
             showToast('Could not delete task.', 'danger');
         }
     }
 
-    // Render local tasks to the DOM
+    // Render local tasks matching selectedDate to the DOM
     function renderTasks() {
         taskList.innerHTML = '';
         
-        // Update count stats
-        updateStats();
+        // Filter tasks that match the active selected date
+        const activeTasks = tasks.filter(task => task.task_date === selectedDate);
+        
+        // Update count stats for the active date
+        updateStats(activeTasks);
 
-        // Check if list is empty
-        if (tasks.length === 0) {
+        // Check if selected date has no tasks
+        if (activeTasks.length === 0) {
             emptyState.classList.remove('hidden');
             return;
         } else {
             emptyState.classList.add('hidden');
         }
 
-        // Generate DOM for each task
-        tasks.forEach(task => {
+        // Generate DOM for each active task
+        activeTasks.forEach(task => {
             const li = document.createElement('li');
             li.className = `task-item ${task.completed ? 'completed' : ''}`;
             li.dataset.id = task.id;
 
-            // Task item container for checkbox & title
+            // Task content container (checkbox & title)
             const contentDiv = document.createElement('div');
             contentDiv.className = 'task-content';
             contentDiv.addEventListener('click', () => toggleTaskStatus(task.id, task.completed));
@@ -320,10 +484,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Update the counter badges
-    function updateStats() {
-        const total = tasks.length;
-        const completed = tasks.filter(task => task.completed).length;
+    // Update the counter badges for the filtered task list
+    function updateStats(activeTasks) {
+        const total = activeTasks.length;
+        const completed = activeTasks.filter(task => task.completed).length;
 
         totalCount.textContent = total;
         completedCount.textContent = completed;
@@ -347,7 +511,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Fade out toast after 3 seconds
         setTimeout(() => {
             toast.classList.add('fade-out');
-            // Remove from DOM after transition completes
             toast.addEventListener('animationend', () => {
                 toast.remove();
             });
