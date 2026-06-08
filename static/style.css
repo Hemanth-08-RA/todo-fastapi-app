@@ -383,7 +383,7 @@ body {
 }
 
 /* ==========================================================================
-   Calendar Widget Styles (Present Month Integrated)
+   Calendar Widget Styles (Integrated Month/Week Layout)
    ========================================================================== */
 .calendar-section {
     background: hsla(248, 20%, 15%, 0.22);
@@ -395,16 +395,26 @@ body {
     gap: 12px;
 }
 
-.calendar-header {
+.calendar-top-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.calendar-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .calendar-header h3 {
     font-size: 1.1rem;
     font-weight: 600;
     color: hsl(var(--text-primary));
+    min-width: 130px;
+    text-align: center;
 }
 
 .nav-btn {
@@ -426,6 +436,36 @@ body {
     background: hsla(0, 0%, 100%, 0.05);
 }
 
+/* Month/Week Segmented Control */
+.view-toggle {
+    background: hsla(248, 20%, 6%, 0.55);
+    border: 1px solid var(--glass-border);
+    border-radius: 30px;
+    padding: 3px;
+    display: flex;
+    gap: 2px;
+}
+
+.toggle-btn {
+    background: transparent;
+    border: none;
+    color: hsl(var(--text-secondary));
+    font-family: var(--font-sans);
+    font-size: 0.76rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    user-select: none;
+}
+
+.toggle-btn.active {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) - 10, 85%, 52%));
+    color: #fff;
+    box-shadow: 0 2px 8px var(--primary-glow);
+}
+
 .calendar-weekdays {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -444,6 +484,7 @@ body {
     grid-template-columns: repeat(7, 1fr);
     row-gap: 8px;
     column-gap: 4px;
+    transition: var(--transition-smooth);
 }
 
 /* Individual Calendar Day Cells */

@@ -1,6 +1,6 @@
 /**
  * TaskFlow Frontend Application Logic
- * Integrates shared rooms, real-time polling, and an interactive calendar.
+ * Integrates shared rooms, real-time polling, and an interactive Month/Week calendar.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const prevMonthBtn = document.getElementById('prev-month-btn');
     const nextMonthBtn = document.getElementById('next-month-btn');
     const activeDateDisplay = document.getElementById('active-date-display');
+    const viewMonthBtn = document.getElementById('view-month-btn');
+    const viewWeekBtn = document.getElementById('view-week-btn');
 
     // DOM Interactive Elements
     const taskList = document.getElementById('task-list');
@@ -41,8 +43,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Calendar & Date State
     const today = new Date();
     let selectedDate = formatDateString(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    // View mode: 'month' or 'week'
+    let currentView = 'month';
+    
+    // Month/Year active calendar viewport
     let calendarYear = today.getFullYear();
     let calendarMonth = today.getMonth(); // 0-indexed (0 = Jan)
+
+    // Week view anchor date
+    let weekPivotDate = new Date(today);
 
     const monthNames = [
         "January", "February", "March", "April", "May", "June", 
@@ -69,8 +79,37 @@ document.addEventListener('DOMContentLoaded', () => {
         leaveBtn.addEventListener('click', disconnectRoom);
 
         // Calendar Navigation
-        prevMonthBtn.addEventListener('click', () => navigateMonth(-1));
-        nextMonthBtn.addEventListener('click', () => navigateMonth(1));
+        prevMonthBtn.addEventListener('click', () => navigateCalendar(-1));
+        nextMonthBtn.addEventListener('click', () => navigateCalendar(1));
+
+        // Calendar View Toggles
+        viewMonthBtn.addEventListener('click', () => switchView('month'));
+        viewWeekBtn.addEventListener('click', () => switchView('week'));
+    }
+
+    // Switch Calendar view (Month vs Week)
+    function switchView(view) {
+        if (currentView === view) return;
+        currentView = view;
+
+        if (view === 'month') {
+            viewWeekBtn.classList.remove('active');
+            viewMonthBtn.classList.add('active');
+            
+            // Sync month viewport to selected date
+            const [y, m, d] = selectedDate.split('-').map(Number);
+            calendarMonth = m - 1;
+            calendarYear = y;
+        } else {
+            viewMonthBtn.classList.remove('active');
+            viewWeekBtn.classList.add('active');
+            
+            // Sync week pivot to selected date
+            const [y, m, d] = selectedDate.split('-').map(Number);
+            weekPivotDate = new Date(y, m - 1, d);
+        }
+
+        renderCalendar();
     }
 
     // Helper to format date elements to YYYY-MM-DD
@@ -97,14 +136,10 @@ document.addEventListener('DOMContentLoaded', () => {
         currentRoomId = roomId;
         localStorage.setItem('taskflow_room_id', roomId);
         
-        // Update UI displays
         roomDisplay.textContent = `Room: ${roomId}`;
-        
-        // Show/Hide containers
         joinContainer.classList.add('hidden');
         appContainer.classList.remove('hidden');
         
-        // Reset state and fetch immediately
         tasks = [];
         updateActiveDateUI();
         fetchTasks();
@@ -159,15 +194,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Navigation for calendar months
-    function navigateMonth(direction) {
-        calendarMonth += direction;
-        if (calendarMonth < 0) {
-            calendarMonth = 11;
-            calendarYear -= 1;
-        } else if (calendarMonth > 11) {
-            calendarMonth = 0;
-            calendarYear += 1;
+    // Navigation for calendar
+    function navigateCalendar(direction) {
+        if (currentView === 'month') {
+            calendarMonth += direction;
+            if (calendarMonth < 0) {
+                calendarMonth = 11;
+                calendarYear -= 1;
+            } else if (calendarMonth > 11) {
+                calendarMonth = 0;
+                calendarYear += 1;
+            }
+        } else {
+            // Shift week pivot by 7 days
+            weekPivotDate.setDate(weekPivotDate.getDate() + (direction * 7));
+            calendarMonth = weekPivotDate.getMonth();
+            calendarYear = weekPivotDate.getFullYear();
         }
         renderCalendar();
     }
@@ -176,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateActiveDateUI() {
         activeDateDisplay.textContent = `Tasks for ${formatFriendlyDate(selectedDate)}`;
         
-        // Check if selectedDate matches today to adjust input placeholder
         const todayStr = formatDateString(today.getFullYear(), today.getMonth(), today.getDate());
         if (selectedDate === todayStr) {
             taskInput.placeholder = "Add a task for today...";
@@ -187,8 +228,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Render Calendar Grid
+    // Main calendar renderer delegates based on currentView mode
     function renderCalendar() {
+        if (currentView === 'month') {
+            renderMonthCalendar();
+        } else {
+            renderWeekCalendar();
+        }
+    }
+
+    // Render Full Month Calendar Grid
+    function renderMonthCalendar() {
         calendarMonthYear.textContent = `${monthNames[calendarMonth]} ${calendarYear}`;
         calendarDaysGrid.innerHTML = '';
 
@@ -196,7 +246,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay();
         firstDayIndex = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
 
-        // Get total days in current month and previous month
         const totalDays = new Date(calendarYear, calendarMonth + 1, 0).getDate();
         const prevTotalDays = new Date(calendarYear, calendarMonth, 0).getDate();
 
@@ -218,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
             calendarDaysGrid.appendChild(dayDiv);
         }
 
-        // 3. Next Month's Padding Days (Complete 6-week layout if needed)
+        // 3. Next Month's Padding Days
         const totalCellsRendered = firstDayIndex + totalDays;
         const totalGridCells = Math.ceil(totalCellsRendered / 7) * 7;
         const nextMonthPadding = totalGridCells - totalCellsRendered;
@@ -233,6 +282,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Render Week Strip Calendar Grid (7 Days)
+    function renderWeekCalendar() {
+        calendarDaysGrid.innerHTML = '';
+
+        // Calculate Monday of the week containing weekPivotDate
+        const currentDay = weekPivotDate.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
+        const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+        const monday = new Date(weekPivotDate);
+        monday.setDate(weekPivotDate.getDate() + diffToMonday);
+
+        // Calculate Sunday of the same week for header title logic
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+
+        // Header Title ranges
+        if (monday.getMonth() === sunday.getMonth()) {
+            calendarMonthYear.textContent = `${monthNames[monday.getMonth()]} ${monday.getFullYear()}`;
+        } else {
+            const monMonth = monthNames[monday.getMonth()].substring(0, 3);
+            const sunMonth = monthNames[sunday.getMonth()].substring(0, 3);
+            if (monday.getFullYear() === sunday.getFullYear()) {
+                calendarMonthYear.textContent = `${monMonth} - ${sunMonth} ${monday.getFullYear()}`;
+            } else {
+                calendarMonthYear.textContent = `${monMonth} ${monday.getFullYear()} - ${sunMonth} ${sunday.getFullYear()}`;
+            }
+        }
+
+        // Render exactly 7 days
+        for (let i = 0; i < 7; i++) {
+            const dayDate = new Date(monday);
+            dayDate.setDate(monday.getDate() + i);
+            const dateStr = formatDateString(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate());
+            
+            const dayDiv = createDayCell(dayDate.getDate(), dateStr, false);
+            calendarDaysGrid.appendChild(dayDiv);
+        }
+    }
+
     // Helper to generate day grid cell element
     function createDayCell(dayNum, dateStr, isAdjacent) {
         const dayDiv = document.createElement('div');
@@ -243,31 +330,28 @@ document.addEventListener('DOMContentLoaded', () => {
             dayDiv.classList.add('adjacent-month');
         }
 
-        // Check if day is today
         const todayStr = formatDateString(today.getFullYear(), today.getMonth(), today.getDate());
         if (dateStr === todayStr) {
             dayDiv.classList.add('today');
         }
 
-        // Check if day is selected
         if (dateStr === selectedDate) {
             dayDiv.classList.add('selected-day');
         }
 
-        // Check if day has tasks to render a cyan indicator dot
         const hasTasks = tasks.some(task => task.task_date === dateStr);
         if (hasTasks) {
             dayDiv.classList.add('has-tasks');
         }
 
-        // Select day on click
         dayDiv.addEventListener('click', () => {
             selectedDate = dateStr;
             
-            // Adjust calendarMonth/Year view if clicking an adjacent day
+            // Align calendar view states
             const [y, m, d] = dateStr.split('-').map(Number);
             calendarMonth = m - 1;
             calendarYear = y;
+            weekPivotDate = new Date(y, m - 1, d);
 
             updateActiveDateUI();
             renderCalendar();
@@ -301,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const newTask = await response.json();
             
-            // Add task locally, trigger UI updates immediately
             tasks.push(newTask);
             taskInput.value = '';
             taskInput.focus();
@@ -326,7 +409,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const fetchedTasks = await response.json();
             
-            // Smart Update: Compare with current list. Only update DOM if something changed
             if (hasTaskStateChanged(tasks, fetchedTasks)) {
                 tasks = fetchedTasks;
                 renderCalendar();
@@ -370,7 +452,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const updatedTask = await response.json();
             
-            // Update local state and render immediately
             tasks = tasks.map(task => task.id === taskId ? updatedTask : task);
             renderTasks();
             
@@ -388,10 +469,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Delete a task by ID
     async function deleteTask(taskId, taskElement) {
         try {
-            // Apply removing animation locally first for fluid interaction
             taskElement.classList.add('removing');
             
-            // Wait for slide-out animation to complete (320ms)
             await new Promise(resolve => setTimeout(resolve, 320));
 
             const response = await fetch(`${API_URL}/${taskId}`, {
@@ -402,7 +481,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Failed to delete task');
             }
 
-            // Remove from local state, update calendar grid dots & tasks list
             tasks = tasks.filter(task => task.id !== taskId);
             renderCalendar();
             renderTasks();
@@ -419,13 +497,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTasks() {
         taskList.innerHTML = '';
         
-        // Filter tasks that match the active selected date
         const activeTasks = tasks.filter(task => task.task_date === selectedDate);
         
-        // Update count stats for the active date
         updateStats(activeTasks);
 
-        // Check if selected date has no tasks
         if (activeTasks.length === 0) {
             emptyState.classList.remove('hidden');
             return;
@@ -433,18 +508,15 @@ document.addEventListener('DOMContentLoaded', () => {
             emptyState.classList.add('hidden');
         }
 
-        // Generate DOM for each active task
         activeTasks.forEach(task => {
             const li = document.createElement('li');
             li.className = `task-item ${task.completed ? 'completed' : ''}`;
             li.dataset.id = task.id;
 
-            // Task content container (checkbox & title)
             const contentDiv = document.createElement('div');
             contentDiv.className = 'task-content';
             contentDiv.addEventListener('click', () => toggleTaskStatus(task.id, task.completed));
 
-            // Custom Checkbox
             const checkbox = document.createElement('span');
             checkbox.className = 'custom-checkbox';
             checkbox.innerHTML = `
@@ -453,7 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </svg>
             `;
 
-            // Task title
             const textSpan = document.createElement('span');
             textSpan.className = 'task-text';
             textSpan.textContent = task.title;
@@ -461,7 +532,6 @@ document.addEventListener('DOMContentLoaded', () => {
             contentDiv.appendChild(checkbox);
             contentDiv.appendChild(textSpan);
 
-            // Delete button
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-btn';
             deleteBtn.setAttribute('aria-label', `Delete task: ${task.title}`);
@@ -484,7 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Update the counter badges for the filtered task list
+    // Update the counter badges
     function updateStats(activeTasks) {
         const total = activeTasks.length;
         const completed = activeTasks.filter(task => task.completed).length;
@@ -508,7 +578,6 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.innerHTML = `${icon} <span>${message}</span>`;
         toastContainer.appendChild(toast);
 
-        // Fade out toast after 3 seconds
         setTimeout(() => {
             toast.classList.add('fade-out');
             toast.addEventListener('animationend', () => {
